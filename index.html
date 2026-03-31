@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="VA Tracker"/>
+<meta name="theme-color" content="#185FA5"/>
+<title>VA Claim Tracker</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root {
+    --blue: #185FA5;
+    --blue-bg: #E6F1FB;
+    --blue-text: #0C447C;
+    --green: #3B6D11;
+    --green-bg: #EAF3DE;
+    --green-text: #27500A;
+    --amber: #BA7517;
+    --amber-bg: #FAEEDA;
+    --red: #A32D2D;
+    --red-bg: #FCEBEB;
+    --red-text: #791F1F;
+    --success-bg: #EAF3DE;
+    --success-text: #27500A;
+    --border: rgba(0,0,0,0.15);
+    --border-mid: rgba(0,0,0,0.25);
+    --bg: #ffffff;
+    --bg2: #f5f5f3;
+    --bg3: #eeede8;
+    --text: #1a1a18;
+    --text2: #5f5e5a;
+    --text3: #888780;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --blue: #85B7EB;
+      --blue-bg: #042C53;
+      --blue-text: #B5D4F4;
+      --green: #97C459;
+      --green-bg: #173404;
+      --green-text: #C0DD97;
+      --amber: #EF9F27;
+      --amber-bg: #412402;
+      --red: #F09595;
+      --red-bg: #501313;
+      --red-text: #F7C1C1;
+      --success-bg: #173404;
+      --success-text: #C0DD97;
+      --border: rgba(255,255,255,0.15);
+      --border-mid: rgba(255,255,255,0.25);
+      --bg: #1c1c1a;
+      --bg2: #242422;
+      --bg3: #2c2c2a;
+      --text: #f0efe8;
+      --text2: #b4b2a9;
+      --text3: #888780;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  #root { min-height: 100vh; }
+  input, select, textarea {
+    font-family: inherit; font-size: 15px; color: var(--text);
+    background: var(--bg); border: 0.5px solid var(--border-mid);
+    border-radius: var(--radius); padding: 10px 12px; width: 100%;
+    outline: none; transition: border-color 0.15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  button {
+    font-family: inherit; font-size: 14px; color: var(--text);
+    background: var(--bg); border: 0.5px solid var(--border-mid);
+    border-radius: var(--radius); padding: 10px 16px; cursor: pointer;
+    transition: opacity 0.12s, transform 0.1s;
+    -webkit-appearance: none; appearance: none;
+  }
+  button:active { transform: scale(0.97); opacity: 0.8; }
+  input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--blue); }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect} = React;
+const STORAGE_KEY = 'va-claims-v2';
+
+const STATUS_OPTIONS = [
+  {value:'not_started',label:'Not started'},
+  {value:'gathering',label:'Gathering evidence'},
+  {value:'evidence_complete',label:'Evidence complete'},
+  {value:'cp_scheduled',label:'C&P exam scheduled'},
+  {value:'cp_done',label:'C&P exam done'},
+  {value:'filed',label:'Claim filed'},
+  {value:'decision_pending',label:'Decision pending'},
+  {value:'decision_received',label:'Decision received'},
+];
+const CONNECTION_TYPES = [
+  {value:'',label:'Select type...'},
+  {value:'direct',label:'Direct service connection'},
+  {value:'secondary',label:'Secondary service connection'},
+  {value:'presumptive',label:'Presumptive service connection'},
+  {value:'aggravation',label:'Aggravation of pre-existing condition'},
+];
+const RATING_OPTIONS = ['','0','10','20','30','40','50','60','70','80','90','100'];
+const EVIDENCE_ITEMS = [
+  {key:'strs',label:'Service Treatment Records (STRs)'},
+  {key:'dd214',label:'DD-214 / separation documents'},
+  {key:'privateRecords',label:'Private medical records'},
+  {key:'vaRecords',label:'VA medical records'},
+  {key:'buddyStatements',label:'Buddy / lay statements'},
+  {key:'dbq',label:'Disability Benefits Questionnaire (DBQ)'},
+  {key:'nexusLetter',label:'Nexus letter from physician'},
+  {key:'personalStatement',label:'Personal statement (38 CFR 3.303)'},
+  {key:'photos',label:'Photos / supporting docs'},
+];
+const CHAPTERS = {
+  connection:{ch:'Ch. 3',title:'Service Connection'},
+  inService:{ch:'Ch. 4',title:'The In-Service Event'},
+  diagnosis:{ch:'Ch. 5',title:'Current Diagnosis'},
+  evidence:{ch:'Ch. 6',title:'Building Your Evidence File'},
+  cpExam:{ch:'Ch. 7',title:'The C&P Exam'},
+  ratings:{ch:'Ch. 9',title:'How Ratings Work'},
+  notes:{ch:'Ch. 10',title:'Organizing Your Claim'},
+};
+
+function makeClaim(name) {
+  return {
+    id: Date.now().toString(), name,
+    serviceConnectionType:'', secondaryTo:'',
+    inServiceEvent:'', inServiceDate:'', inServiceLocation:'', witnesses:'',
+    diagnosed:null, diagnosisDate:'', physician:'', treatment:'',
+    evidence: Object.fromEntries(EVIDENCE_ITEMS.map(e=>[e.key,false])),
+    cpExamScheduled:null, cpExamDate:'', cpExamLocation:'', cpExamNotes:'',
+    proposedRating:'', claimStatus:'not_started', decisionRating:'', notes:'',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function calcProgress(c) {
+  let total=16, done=0;
+  if(c.serviceConnectionType) done++;
+  if(c.inServiceEvent?.trim()) done++;
+  if(c.diagnosed!==null) done++;
+  done += Object.values(c.evidence).filter(Boolean).length;
+  if(c.cpExamScheduled!==null) done++;
+  if(c.cpExamNotes?.trim()) done++;
+  if(c.proposedRating) done++;
+  if(c.claimStatus!=='not_started') done++;
+  return Math.round((done/total)*100);
+}
+
+function getStatusLabel(v) { return STATUS_OPTIONS.find(s=>s.value===v)?.label||'Not started'; }
+
+function calcCombined(ratings) {
+  const sorted=[...ratings].filter(r=>r>0).sort((a,b)=>b-a);
+  if(!sorted.length) return {steps:[],combined:0,rounded:0};
+  let remaining=100;
+  const steps=[];
+  for(const r of sorted) {
+    const disability=remaining*(r/100);
+    const newRemaining=remaining-disability;
+    steps.push({rating:r,remaining:Math.round(remaining),disability:Math.round(disability*10)/10,after:Math.round(newRemaining*10)/10});
+    remaining=newRemaining;
+  }
+  const combined=Math.round(100-remaining);
+  const rounded=Math.round(combined/10)*10;
+  return {steps,combined,rounded};
+}
+
+function exportClaim(c) {
+  const evGathered=EVIDENCE_ITEMS.filter(e=>c.evidence[e.key]).map(e=>e.label);
+  const evMissing=EVIDENCE_ITEMS.filter(e=>!c.evidence[e.key]).map(e=>e.label);
+  return [
+    'VA CLAIM WORKSHEET',
+    `Generated: ${new Date().toLocaleDateString()}`,
+    '─'.repeat(40),
+    `CONDITION: ${c.name}`,
+    `Status: ${getStatusLabel(c.claimStatus)}`,
+    `Progress: ${calcProgress(c)}%`,
+    '',
+    'SERVICE CONNECTION',
+    `Type: ${CONNECTION_TYPES.find(t=>t.value===c.serviceConnectionType)?.label||'Not set'}`,
+    c.secondaryTo ? `Secondary to: ${c.secondaryTo}` : '',
+    `Proposed rating: ${c.proposedRating ? c.proposedRating+'%' : 'Not estimated'}`,
+    '',
+    'IN-SERVICE EVENT',
+    c.inServiceEvent||'(not filled in)',
+    c.inServiceDate ? `Date: ${c.inServiceDate}` : '',
+    c.inServiceLocation ? `Location/unit: ${c.inServiceLocation}` : '',
+    c.witnesses ? `Witnesses: ${c.witnesses}` : '',
+    '',
+    'CURRENT DIAGNOSIS',
+    `Diagnosed: ${c.diagnosed===true?'Yes':c.diagnosed===false?'No':'Unsure'}`,
+    c.physician ? `Physician/facility: ${c.physician}` : '',
+    c.treatment ? `Treatment/medications: ${c.treatment}` : '',
+    '',
+    `EVIDENCE GATHERED (${evGathered.length}/${EVIDENCE_ITEMS.length})`,
+    ...evGathered.map(e=>`  ✓ ${e}`),
+    evMissing.length ? '\nSTILL NEEDED:' : '',
+    ...evMissing.map(e=>`  ○ ${e}`),
+    '',
+    'C&P EXAM',
+    `Scheduled: ${c.cpExamScheduled===true?'Yes':c.cpExamScheduled===false?'Not yet':'N/A'}`,
+    c.cpExamDate ? `Date: ${c.cpExamDate}` : '',
+    c.cpExamLocation ? `Location: ${c.cpExamLocation}` : '',
+    c.cpExamNotes ? `Prep notes:\n${c.cpExamNotes}` : '',
+    c.decisionRating ? `Awarded rating: ${c.decisionRating}%` : '',
+    '',
+    c.notes ? `NOTES\n${c.notes}` : '',
+    '─'.repeat(40),
+  ].filter(l=>l!==null&&l!==undefined).join('\n');
+}
+
+function exportAll(claims) { return claims.map(c=>exportClaim(c)).join('\n\n'); }
+
+function ProgressRing({pct, size=52}) {
+  const r=(size-10)/2, circ=2*Math.PI*r, filled=(pct/100)*circ;
+  const color=pct>=80?'var(--green)':pct>=40?'var(--amber)':'var(--blue)';
+  return (
+    <svg width={size} height={size} style={{flexShrink:0}}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth={5}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={5}
+        strokeDasharray={`${filled} ${circ-filled}`} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}/>
+      <text x={size/2} y={size/2+4} textAnchor="middle" fontSize="12" fontWeight="600" fill={color}>{pct}%</text>
+    </svg>
+  );
+}
+
+function ChapterBadge({chKey}) {
+  const ch=CHAPTERS[chKey];
+  if(!ch) return null;
+  return (
+    <span title={ch.title} style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:99,
+      background:'var(--blue-bg)',color:'var(--blue-text)',border:'0.5px solid var(--blue)',
+      cursor:'default',whiteSpace:'nowrap'}}>{ch.ch}</span>
+  );
+}
+
+function Section({title, chKey, children}) {
+  return (
+    <div style={{marginBottom:'1.5rem'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,borderBottom:'0.5px solid var(--border)',paddingBottom:8,marginBottom:12}}>
+        <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.09em',textTransform:'uppercase',color:'var(--text2)',margin:0,flex:1}}>{title}</p>
+        {chKey&&<ChapterBadge chKey={chKey}/>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Field({label, children}) {
+  return (
+    <div style={{marginBottom:14}}>
+      <label style={{display:'block',fontSize:13,color:'var(--text2)',marginBottom:5,fontWeight:500}}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function ToggleGroup({options, value, onChange}) {
+  return (
+    <div style={{display:'flex',gap:8}}>
+      {options.map(opt=>(
+        <button key={String(opt.val)} onClick={()=>onChange(opt.val)} style={{flex:1,fontWeight:500,
+          background:value===opt.val?'var(--blue-bg)':'var(--bg)',
+          color:value===opt.val?'var(--blue-text)':'var(--text)',
+          borderColor:value===opt.val?'var(--blue)':'var(--border-mid)'}}>
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Toast({msg, onDone}) {
+  useEffect(()=>{const t=setTimeout(onDone,2000);return()=>clearTimeout(t);},[]);
+  return (
+    <div style={{position:'fixed',bottom:80,left:'50%',transform:'translateX(-50%)',
+      background:'var(--success-bg)',color:'var(--success-text)',
+      border:'0.5px solid var(--green)',borderRadius:99,
+      padding:'10px 20px',fontSize:14,fontWeight:600,zIndex:1000,whiteSpace:'nowrap',
+      boxShadow:'0 2px 12px rgba(0,0,0,0.15)'}}>
+      {msg}
+    </div>
+  );
+}
+
+function Worksheet({claim, onChange, onBack, onDelete}) {
+  const [c,setC]=useState(claim);
+  const [confirmDel,setConfirmDel]=useState(false);
+  const [toast,setToast]=useState('');
+
+  function update(patch) { const updated={...c,...patch}; setC(updated); onChange(updated); }
+
+  async function copyExport() {
+    try { await navigator.clipboard.writeText(exportClaim(c)); setToast('Summary copied!'); }
+    catch { setToast('Copy failed — try your browser'); }
+  }
+
+  const pct=calcProgress(c);
+  const TA={width:'100%',minHeight:80,resize:'vertical'};
+
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg2)'}}>
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+      <div style={{position:'sticky',top:0,background:'var(--bg)',borderBottom:'0.5px solid var(--border)',
+        padding:'12px 16px',display:'flex',alignItems:'center',gap:12,zIndex:50}}>
+        <button onClick={onBack} style={{background:'none',border:'none',fontSize:24,color:'var(--text2)',
+          cursor:'pointer',padding:'0 4px',lineHeight:1,fontWeight:300}}>‹</button>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontSize:17,fontWeight:600,margin:'0 0 1px',color:'var(--text)',
+            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.name}</h2>
+          <p style={{fontSize:12,margin:0,color:'var(--text2)'}}>{pct}% complete · {getStatusLabel(c.claimStatus)}</p>
+        </div>
+        <ProgressRing pct={pct} size={48}/>
+      </div>
+
+      <div style={{padding:'1rem',maxWidth:520,margin:'0 auto',paddingBottom:'2rem'}}>
+        <button onClick={copyExport} style={{width:'100%',marginBottom:'1.25rem',
+          background:'var(--blue-bg)',color:'var(--blue-text)',borderColor:'var(--blue)',fontWeight:600,fontSize:14}}>
+          Export summary — copy to clipboard
+        </button>
+
+        <Section title="Condition & connection" chKey="connection">
+          <Field label="Condition name"><input value={c.name} onChange={e=>update({name:e.target.value})}/></Field>
+          <Field label="Service connection type">
+            <select value={c.serviceConnectionType} onChange={e=>update({serviceConnectionType:e.target.value})}>
+              {CONNECTION_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </Field>
+          {c.serviceConnectionType==='secondary'&&(
+            <Field label="Secondary to which condition?">
+              <input value={c.secondaryTo} onChange={e=>update({secondaryTo:e.target.value})} placeholder="e.g. PTSD, diabetes..."/>
+            </Field>
+          )}
+          <Field label="Proposed rating %">
+            <select value={c.proposedRating} onChange={e=>update({proposedRating:e.target.value})}>
+              {RATING_OPTIONS.map(r=><option key={r} value={r}>{r?r+'%':'Not estimated'}</option>)}
+            </select>
+          </Field>
+        </Section>
+
+        <Section title="In-service event / nexus" chKey="inService">
+          <Field label="What happened? (event, injury, or exposure)">
+            <textarea style={TA} value={c.inServiceEvent} onChange={e=>update({inServiceEvent:e.target.value})}
+              placeholder="Describe the incident, exposure, or condition that began during service..."/>
+          </Field>
+          <Field label="Approximate date"><input type="date" value={c.inServiceDate} onChange={e=>update({inServiceDate:e.target.value})}/></Field>
+          <Field label="Location / unit">
+            <input value={c.inServiceLocation} onChange={e=>update({inServiceLocation:e.target.value})} placeholder="e.g. FOB Salerno, 3rd Battalion..."/>
+          </Field>
+          <Field label="Witnesses / buddy statement candidates">
+            <input value={c.witnesses} onChange={e=>update({witnesses:e.target.value})} placeholder="Names who can write a statement..."/>
+          </Field>
+        </Section>
+
+        <Section title="Current diagnosis" chKey="diagnosis">
+          <Field label="Do you have a current diagnosis?">
+            <ToggleGroup options={[{val:true,label:'Yes'},{val:false,label:'No'},{val:null,label:'Unsure'}]}
+              value={c.diagnosed} onChange={v=>update({diagnosed:v})}/>
+          </Field>
+          {c.diagnosed&&<>
+            <Field label="Diagnosis date"><input type="date" value={c.diagnosisDate} onChange={e=>update({diagnosisDate:e.target.value})}/></Field>
+            <Field label="Diagnosing physician / facility">
+              <input value={c.physician} onChange={e=>update({physician:e.target.value})} placeholder="Dr. name or VA facility..."/>
+            </Field>
+            <Field label="Current treatment / medications">
+              <textarea style={{...TA,minHeight:60}} value={c.treatment} onChange={e=>update({treatment:e.target.value})}
+                placeholder="Ongoing treatment, medications, therapy..."/>
+            </Field>
+          </>}
+        </Section>
+
+        <Section title="Evidence checklist" chKey="evidence">
+          {EVIDENCE_ITEMS.map(item=>(
+            <label key={item.key} style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:14,cursor:'pointer'}}>
+              <input type="checkbox" checked={c.evidence[item.key]}
+                onChange={e=>update({evidence:{...c.evidence,[item.key]:e.target.checked}})}
+                style={{marginTop:2,flexShrink:0}}/>
+              <span style={{fontSize:15,color:c.evidence[item.key]?'var(--green)':'var(--text)',lineHeight:1.4,fontWeight:c.evidence[item.key]?500:400}}>{item.label}</span>
+            </label>
+          ))}
+          <p style={{fontSize:13,color:'var(--text2)',marginTop:4}}>
+            {Object.values(c.evidence).filter(Boolean).length} of {EVIDENCE_ITEMS.length} items gathered
+          </p>
+        </Section>
+
+        <Section title="C&P exam" chKey="cpExam">
+          <Field label="C&P exam scheduled?">
+            <ToggleGroup options={[{val:true,label:'Yes'},{val:false,label:'Not yet'},{val:null,label:'N/A'}]}
+              value={c.cpExamScheduled} onChange={v=>update({cpExamScheduled:v})}/>
+          </Field>
+          {c.cpExamScheduled===true&&<>
+            <Field label="Exam date"><input type="date" value={c.cpExamDate} onChange={e=>update({cpExamDate:e.target.value})}/></Field>
+            <Field label="Exam location / provider">
+              <input value={c.cpExamLocation} onChange={e=>update({cpExamLocation:e.target.value})} placeholder="Location or QTC/LHI..."/>
+            </Field>
+          </>}
+          <Field label="Exam prep — symptoms & key points to discuss">
+            <textarea style={TA} value={c.cpExamNotes} onChange={e=>update({cpExamNotes:e.target.value})}
+              placeholder="Worst-day examples, functional impact at work and home, frequency of symptoms..."/>
+          </Field>
+        </Section>
+
+        <Section title="Claim status" chKey="ratings">
+          <Field label="Current status">
+            <select value={c.claimStatus} onChange={e=>update({claimStatus:e.target.value})}>
+              {STATUS_OPTIONS.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </Field>
+          {c.claimStatus==='decision_received'&&(
+            <Field label="Awarded rating %">
+              <select value={c.decisionRating} onChange={e=>update({decisionRating:e.target.value})}>
+                {RATING_OPTIONS.map(r=><option key={r} value={r}>{r?r+'%':'Select...'}</option>)}
+              </select>
+            </Field>
+          )}
+        </Section>
+
+        <Section title="Notes" chKey="notes">
+          <textarea style={{...TA,minHeight:100}} value={c.notes} onChange={e=>update({notes:e.target.value})}
+            placeholder="VSO contact info, important dates, reminders, next steps..."/>
+        </Section>
+
+        <div style={{borderTop:'0.5px solid var(--border)',paddingTop:'1rem'}}>
+          {!confirmDel
+            ?<button onClick={()=>setConfirmDel(true)} style={{color:'var(--red)',borderColor:'var(--red)',width:'100%'}}>Delete this condition</button>
+            :<div>
+              <p style={{fontSize:13,color:'var(--red)',textAlign:'center',marginBottom:10}}>Delete "{c.name}"? This cannot be undone.</p>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>onDelete(c.id)} style={{flex:1,color:'var(--red)',borderColor:'var(--red)'}}>Yes, delete</button>
+                <button onClick={()=>setConfirmDel(false)} style={{flex:1}}>Cancel</button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Calculator({claims}) {
+  const initial=claims.map(c=>({id:c.id,name:c.name,rating:c.proposedRating?parseInt(c.proposedRating):0}));
+  const [rows,setRows]=useState(initial.length?initial:[{id:'manual-1',name:'',rating:0}]);
+  const [toast,setToast]=useState('');
+
+  function updateRow(id,patch) { setRows(r=>r.map(row=>row.id===id?{...row,...patch}:row)); }
+  function addRow() { setRows(r=>[...r,{id:'manual-'+Date.now(),name:'',rating:0}]); }
+  function removeRow(id) { setRows(r=>r.filter(row=>row.id!==id)); }
+
+  const {steps,combined,rounded}=calcCombined(rows.map(r=>r.rating));
+
+  async function copyCalc() {
+    const lines=[
+      'VA COMBINED RATING CALCULATION',
+      `Generated: ${new Date().toLocaleDateString()}`,
+      '─'.repeat(38),
+      ...steps.map((s,i)=>`Step ${i+1}: ${s.rating}% applied to ${s.remaining}% remaining = ${s.disability}% disabled`),
+      '',
+      `Raw combined: ${combined}%`,
+      `Rounded to nearest 10: ${rounded}%`,
+      '',
+      'Conditions included:',
+      ...rows.filter(r=>r.rating>0).map(r=>`  ${r.name||'(unnamed)'}: ${r.rating}%`),
+    ];
+    try { await navigator.clipboard.writeText(lines.join('\n')); setToast('Calculation copied!'); }
+    catch { setToast('Copy failed'); }
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg2)'}}>
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+      <div style={{position:'sticky',top:0,background:'var(--bg)',borderBottom:'0.5px solid var(--border)',
+        padding:'14px 16px',display:'flex',alignItems:'center',gap:8,zIndex:50}}>
+        <h2 style={{fontSize:17,fontWeight:600,flex:1,color:'var(--text)'}}>Combined ratings calculator</h2>
+        <ChapterBadge chKey="ratings"/>
+      </div>
+
+      <div style={{padding:'1rem',maxWidth:520,margin:'0 auto',paddingBottom:'5rem'}}>
+        <p style={{fontSize:13,color:'var(--text2)',marginBottom:'1rem',lineHeight:1.6}}>
+          The VA uses the "whole person" method — not simple addition. Each rating is applied to your remaining non-disabled percentage. Ratings are auto-pulled from your claims; edit freely.
+        </p>
+
+        <div style={{background:'var(--bg)',border:'0.5px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'1rem',marginBottom:'1rem'}}>
+          <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.09em',textTransform:'uppercase',color:'var(--text2)',marginBottom:12}}>Conditions & ratings</p>
+          {rows.map(row=>(
+            <div key={row.id} style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+              <input value={row.name} onChange={e=>updateRow(row.id,{name:e.target.value})}
+                placeholder="Condition name" style={{flex:1,fontSize:14}}/>
+              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <input type="number" min="0" max="100" step="10" value={row.rating}
+                  onChange={e=>updateRow(row.id,{rating:Math.min(100,Math.max(0,parseInt(e.target.value)||0))})}
+                  style={{width:58,textAlign:'center',fontSize:14}}/>
+                <span style={{fontSize:13,color:'var(--text2)'}}>%</span>
+              </div>
+              {rows.length>1&&(
+                <button onClick={()=>removeRow(row.id)}
+                  style={{width:32,height:32,padding:0,flexShrink:0,display:'flex',alignItems:'center',
+                    justifyContent:'center',color:'var(--red)',borderColor:'var(--red)',fontSize:18}}>×</button>
+              )}
+            </div>
+          ))}
+          <button onClick={addRow} style={{width:'100%',marginTop:4,fontSize:14}}>+ Add condition</button>
+        </div>
+
+        {steps.length>0&&(
+          <div style={{background:'var(--bg)',border:'0.5px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'1rem',marginBottom:'1rem'}}>
+            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.09em',textTransform:'uppercase',color:'var(--text2)',marginBottom:14}}>Step-by-step calculation</p>
+            {steps.map((s,i)=>(
+              <div key={i} style={{marginBottom:14}}>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}}>
+                  <span style={{color:'var(--text2)'}}>Step {i+1}: {s.rating}% × {s.remaining}% remaining</span>
+                  <span style={{fontWeight:600}}>{s.disability}% disabled</span>
+                </div>
+                <div style={{height:6,background:'var(--bg3)',borderRadius:3,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:Math.max(2,s.rating)+'%',background:'var(--blue)',borderRadius:3}}/>
+                </div>
+              </div>
+            ))}
+            <div style={{borderTop:'0.5px solid var(--border)',paddingTop:14,marginTop:4}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:14,marginBottom:8}}>
+                <span style={{color:'var(--text2)'}}>Raw combined</span>
+                <span style={{fontWeight:600}}>{combined}%</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:13,color:'var(--text2)'}}>Rounded to nearest 10</span>
+                <span style={{fontSize:26,fontWeight:700,
+                  color:rounded>=70?'var(--green)':rounded>=40?'var(--amber)':'var(--blue)'}}>
+                  {rounded}%
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {steps.length===0&&(
+          <div style={{textAlign:'center',padding:'2rem 1rem',color:'var(--text2)',fontSize:14}}>
+            Enter at least one rating above to see the calculation.
+          </div>
+        )}
+
+        {steps.length>0&&(
+          <button onClick={copyCalc} style={{width:'100%',
+            background:'var(--blue-bg)',color:'var(--blue-text)',borderColor:'var(--blue)',fontWeight:600}}>
+            Copy calculation to clipboard
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({claims, onSelect, onAdd}) {
+  const [showAdd,setShowAdd]=useState(false);
+  const [newName,setNewName]=useState('');
+  const [toast,setToast]=useState('');
+
+  function handleAdd() { if(!newName.trim()) return; onAdd(newName.trim()); setNewName(''); setShowAdd(false); }
+
+  async function handleExportAll() {
+    try { await navigator.clipboard.writeText(exportAll(claims)); setToast('All claims copied!'); }
+    catch { setToast('Copy failed'); }
+  }
+
+  const totalPct=claims.length?Math.round(claims.reduce((s,c)=>s+calcProgress(c),0)/claims.length):0;
+
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg2)'}}>
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+      <div style={{position:'sticky',top:0,background:'var(--bg)',borderBottom:'0.5px solid var(--border)',
+        padding:'14px 16px',display:'flex',alignItems:'center',gap:12,zIndex:50}}>
+        <div style={{flex:1}}>
+          <h1 style={{fontSize:19,fontWeight:700,margin:'0 0 1px',color:'var(--text)'}}>VA Claim Tracker</h1>
+          <p style={{fontSize:12,color:'var(--text2)',margin:0}}>
+            {claims.length} condition{claims.length!==1?'s':''}{claims.length>0?` · ${totalPct}% overall`:''}
+          </p>
+        </div>
+        {claims.length>0&&(
+          <button onClick={handleExportAll} style={{fontSize:13,padding:'7px 12px'}}>Export all</button>
+        )}
+        <button onClick={()=>setShowAdd(true)}
+          style={{width:36,height:36,padding:0,fontSize:22,lineHeight:1,
+            background:'var(--blue-bg)',color:'var(--blue-text)',borderColor:'var(--blue)',
+            display:'flex',alignItems:'center',justifyContent:'center',fontWeight:300}}>+</button>
+      </div>
+
+      <div style={{padding:'1rem',maxWidth:520,margin:'0 auto',paddingBottom:'5rem'}}>
+        {showAdd&&(
+          <div style={{background:'var(--bg)',border:'0.5px solid var(--border-mid)',borderRadius:'var(--radius-lg)',
+            padding:'1rem',marginBottom:'1rem'}}>
+            <p style={{fontSize:14,fontWeight:600,margin:'0 0 10px'}}>Add a condition</p>
+            <input autoFocus value={newName} onChange={e=>setNewName(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&handleAdd()}
+              placeholder="e.g. Tinnitus, PTSD, left knee..." style={{marginBottom:10}}/>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={handleAdd} style={{flex:1,background:'var(--blue-bg)',color:'var(--blue-text)',borderColor:'var(--blue)',fontWeight:600}}>Add condition</button>
+              <button onClick={()=>{setShowAdd(false);setNewName('');}}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {claims.length===0&&!showAdd&&(
+          <div style={{textAlign:'center',padding:'4rem 1rem',color:'var(--text2)'}}>
+            <p style={{fontSize:16,marginBottom:8,fontWeight:500}}>No conditions added yet.</p>
+            <p style={{fontSize:14}}>Tap + to add your first claimed condition.</p>
+          </div>
+        )}
+
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {claims.map(claim=>{
+            const pct=calcProgress(claim);
+            return (
+              <div key={claim.id} onClick={()=>onSelect(claim.id)}
+                style={{background:'var(--bg)',border:'0.5px solid var(--border)',borderRadius:'var(--radius-lg)',
+                  padding:'1rem',cursor:'pointer',display:'flex',alignItems:'center',gap:14}}>
+                <ProgressRing pct={pct}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:16,fontWeight:600,margin:'0 0 3px',color:'var(--text)',
+                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{claim.name}</p>
+                  <p style={{fontSize:13,margin:0,color:'var(--text2)'}}>{getStatusLabel(claim.claimStatus)}</p>
+                </div>
+                {claim.proposedRating&&(
+                  <span style={{fontSize:14,fontWeight:600,color:'var(--text2)',flexShrink:0}}>{claim.proposedRating}%</span>
+                )}
+                <span style={{fontSize:22,color:'var(--text3)',lineHeight:1}}>›</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({tab, setTab}) {
+  const tabs=[{key:'dashboard',label:'Claims'},{key:'calculator',label:'Calculator'}];
+  return (
+    <div style={{position:'fixed',bottom:0,left:0,right:0,background:'var(--bg)',
+      borderTop:'0.5px solid var(--border)',display:'flex',zIndex:100,
+      paddingBottom:'env(safe-area-inset-bottom)'}}>
+      {tabs.map(t=>(
+        <button key={t.key} onClick={()=>setTab(t.key)}
+          style={{flex:1,padding:'12px 0',border:'none',borderRadius:0,
+            background:'none',fontSize:13,fontWeight:600,
+            color:tab===t.key?'var(--blue)':'var(--text2)'}}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  const [claims,setClaims]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+  const [tab,setTab]=useState('dashboard');
+  const [worksheet,setWorksheet]=useState(null);
+
+  useEffect(()=>{
+    const saved=localStorage.getItem(STORAGE_KEY);
+    if(saved) { try { setClaims(JSON.parse(saved)); } catch{} }
+    setLoaded(true);
+    if('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    }
+  },[]);
+
+  function save(next) {
+    setClaims(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+
+  if(!loaded) return <div style={{padding:'3rem',textAlign:'center',color:'var(--text2)',fontSize:15}}>Loading...</div>;
+
+  const activeClaim=worksheet?claims.find(c=>c.id===worksheet):null;
+
+  return (
+    <div>
+      {activeClaim
+        ?<Worksheet claim={activeClaim}
+            onChange={updated=>save(claims.map(c=>c.id===updated.id?updated:c))}
+            onBack={()=>setWorksheet(null)}
+            onDelete={id=>{save(claims.filter(c=>c.id!==id));setWorksheet(null);}}/>
+        :tab==='calculator'
+          ?<Calculator claims={claims}/>
+          :<Dashboard claims={claims}
+              onSelect={id=>setWorksheet(id)}
+              onAdd={name=>save([...claims,makeClaim(name)])}/>
+      }
+      {!worksheet&&<BottomNav tab={tab} setTab={setTab}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+<script>
+if('serviceWorker' in navigator) {
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
