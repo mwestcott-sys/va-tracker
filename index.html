@@ -330,6 +330,10 @@ const GLOSSARY = {
     term: '38 CFR 3.303',
     definition: 'The federal regulation governing direct service connection for disabilities. It establishes that a veteran can establish service connection by showing: (1) a current diagnosis, (2) an in-service event or injury, and (3) a medical nexus linking the two. This is the legal foundation of most VA disability claims.'
   },
+  serviceConnectionType: {
+    term: 'Service connection type',
+    definition: 'The category of your claim that describes how your condition is linked to military service. The four main types are: Direct (caused by service), Secondary (caused by an already service-connected condition), Presumptive (automatically assumed to be service-connected for certain exposures or diseases), and Aggravation (a pre-existing condition worsened by service). Choosing the right type is important — you can claim more than one type for the same condition.'
+  },
   direct: {
     term: 'Direct service connection',
     definition: 'The most straightforward type of VA claim. You are asserting that your condition was directly caused by something that happened during your military service — an injury, illness, or exposure. You must show a current diagnosis, an in-service event, and a medical nexus connecting them.'
@@ -444,7 +448,7 @@ function Worksheet({claim, onChange, onBack, onDelete}) {
 
         <Section title="Condition & connection" chKey="connection">
           <Field label="Condition name"><input value={c.name} onChange={e=>update({name:e.target.value})}/></Field>
-          <Field label={<><Term termKey="direct">Service connection</Term> type</>}>
+          <Field label={<Term termKey="serviceConnectionType">Service connection type</Term>}>
             <select value={c.serviceConnectionType} onChange={e=>update({serviceConnectionType:e.target.value})}>
               {CONNECTION_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
