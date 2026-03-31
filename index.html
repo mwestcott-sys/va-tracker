@@ -570,7 +570,7 @@ function Calculator({claims}) {
   );
 }
 
-function Dashboard({claims, onSelect, onAdd}) {
+function Dashboard({claims, onSelect, onAdd, PrivacyBadge}) {
   const [showAdd,setShowAdd]=useState(false);
   const [newName,setNewName]=useState('');
   const [toast,setToast]=useState('');
@@ -595,6 +595,7 @@ function Dashboard({claims, onSelect, onAdd}) {
             {claims.length} condition{claims.length!==1?'s':''}{claims.length>0?` · ${totalPct}% overall`:''}
           </p>
         </div>
+        <PrivacyBadge/>
         {claims.length>0&&(
           <button onClick={handleExportAll} style={{fontSize:13,padding:'7px 12px'}}>Export all</button>
         )}
@@ -670,20 +671,86 @@ function BottomNav({tab, setTab}) {
   );
 }
 
+function PrivacyBadge() {
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:6,
+      background:'var(--green-bg)',border:'0.5px solid var(--green)',
+      borderRadius:99,padding:'4px 10px',flexShrink:0}}>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+        <path d="M6 1L1.5 3v3c0 2.5 1.9 4.8 4.5 5.4C8.6 10.8 10.5 8.5 10.5 6V3L6 1z" fill="var(--green)"/>
+      </svg>
+      <span style={{fontSize:11,fontWeight:700,color:'var(--green-text)',whiteSpace:'nowrap',letterSpacing:'0.02em'}}>Stored on this device only</span>
+    </div>
+  );
+}
+
+function WelcomeScreen({onDismiss}) {
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg2)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
+      <div style={{background:'var(--bg)',border:'0.5px solid var(--border)',borderRadius:'var(--radius-lg)',
+        padding:'2rem',maxWidth:400,width:'100%'}}>
+        <div style={{textAlign:'center',marginBottom:'1.5rem'}}>
+          <div style={{width:56,height:56,borderRadius:16,background:'var(--blue-bg)',
+            display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 1rem'}}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L3 7v5c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7L12 2z" fill="var(--blue)"/>
+            </svg>
+          </div>
+          <h1 style={{fontSize:20,fontWeight:700,color:'var(--text)',marginBottom:6}}>VA Claim Tracker</h1>
+          <p style={{fontSize:14,color:'var(--text2)',lineHeight:1.6}}>A worksheet companion for <em>The Complete VA Disability Claim Playbook</em></p>
+        </div>
+
+        <div style={{background:'var(--green-bg)',border:'0.5px solid var(--green)',
+          borderRadius:'var(--radius)',padding:'1rem',marginBottom:'1.5rem'}}>
+          <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+            <svg width="18" height="18" viewBox="0 0 12 12" fill="none" style={{flexShrink:0,marginTop:1}}>
+              <path d="M6 1L1.5 3v3c0 2.5 1.9 4.8 4.5 5.4C8.6 10.8 10.5 8.5 10.5 6V3L6 1z" fill="var(--green)"/>
+            </svg>
+            <div>
+              <p style={{fontSize:14,fontWeight:700,color:'var(--green-text)',marginBottom:4}}>Your privacy is protected</p>
+              <p style={{fontSize:13,color:'var(--green-text)',lineHeight:1.6,opacity:0.9}}>
+                Everything you enter — your conditions, medical history, service records, and notes — is stored <strong>only on this device</strong>. Nothing is sent to any server, cloud, or third party. Ever.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,marginBottom:'1.5rem'}}>
+          <p style={{marginBottom:8}}><strong style={{color:'var(--text)'}}>Tip:</strong> Use the Export button to copy your claim summaries as a backup — paste them into a Notes app or email them to yourself.</p>
+          <p>You can delete all your data at any time by clearing your browser storage in your phone settings.</p>
+        </div>
+
+        <button onClick={onDismiss} style={{width:'100%',background:'var(--blue-bg)',
+          color:'var(--blue-text)',borderColor:'var(--blue)',fontWeight:700,fontSize:15,padding:'13px'}}>
+          Get started
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [claims,setClaims]=useState([]);
   const [loaded,setLoaded]=useState(false);
+  const [welcomed,setWelcomed]=useState(true);
   const [tab,setTab]=useState('dashboard');
   const [worksheet,setWorksheet]=useState(null);
 
   useEffect(()=>{
     const saved=localStorage.getItem(STORAGE_KEY);
     if(saved) { try { setClaims(JSON.parse(saved)); } catch{} }
+    const seen=localStorage.getItem('va-welcomed');
+    if(!seen) setWelcomed(false);
     setLoaded(true);
     if('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
     }
   },[]);
+
+  function dismissWelcome() {
+    localStorage.setItem('va-welcomed','1');
+    setWelcomed(true);
+  }
 
   function save(next) {
     setClaims(next);
@@ -691,6 +758,7 @@ function App() {
   }
 
   if(!loaded) return <div style={{padding:'3rem',textAlign:'center',color:'var(--text2)',fontSize:15}}>Loading...</div>;
+  if(!welcomed) return <WelcomeScreen onDismiss={dismissWelcome}/>;
 
   const activeClaim=worksheet?claims.find(c=>c.id===worksheet):null;
 
@@ -705,7 +773,8 @@ function App() {
           ?<Calculator claims={claims}/>
           :<Dashboard claims={claims}
               onSelect={id=>setWorksheet(id)}
-              onAdd={name=>save([...claims,makeClaim(name)])}/>
+              onAdd={name=>save([...claims,makeClaim(name)])}
+              PrivacyBadge={PrivacyBadge}/>
       }
       {!worksheet&&<BottomNav tab={tab} setTab={setTab}/>}
     </div>
